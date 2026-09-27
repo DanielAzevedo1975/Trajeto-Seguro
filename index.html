@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trajeto Seguro</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#16324F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --ink: #1E2749;
+    --paper: #EDEFF2;
+    --card: #FFFFFF;
+    --sky: #16324F;
+    --sky-dark: #0B1F33;
+    --sunrise: #E8A33D;
+    --leaf: #4C7A5B;
+    --brick: #B15048;
+    --line: #D7DCE1;
+    --muted: #6B7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    background: var(--paper);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 32px 28px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .brand-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; color: var(--sunrise); font-size: 13px; }
+  .field-label { display: block; font-size: 13px; color: var(--muted); margin: 16px 0 6px; }
+  .field-input {
+    width: 100%; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px;
+    font-size: 15px; font-family: inherit; color: var(--ink); background: #FCFCFD;
+  }
+  .field-input:focus { outline: none; border-color: var(--sky); box-shadow: 0 0 0 3px rgba(93,122,148,0.15); }
+  .role-options { display: flex; gap: 10px; margin-top: 6px; }
+  .role-option {
+    flex: 1; border: 1px solid var(--sky); border-radius: 10px; padding: 10px;
+    text-align: center; font-size: 14px; cursor: pointer; color: #fff; background: var(--sky);
+  }
+  .role-option.selected { background: var(--sky-dark); border-color: var(--sky-dark); font-weight: 600; }
+  .btn-primary {
+    width: 100%; margin-top: 22px; padding: 13px; background: var(--sky); color: #fff;
+    border: none; border-radius: 10px; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
+  }
+  .btn-primary:hover { background: var(--sky-dark); }
+  .btn-primary:disabled { opacity: 0.6; cursor: default; }
+  .link-btn { background: none; border: none; color: var(--sky); font-size: 13px; cursor: pointer; padding: 0; margin-top: 14px; display: block; text-align: center; width: 100%; }
+  .error-text { color: var(--brick); font-size: 13px; margin-top: 10px; }
+  .hint-text { color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 4px; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .logout-btn { background: none; border: none; color: var(--muted); font-size: 13px; cursor: pointer; padding: 6px 4px; }
+  .logout-btn:hover { color: var(--ink); }
+  .timer { font-size: 48px; font-weight: 500; text-align: center; margin: 14px 0 2px; letter-spacing: 1px; color: var(--ink); }
+  .distance-line { text-align: center; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  .status-line { text-align: center; font-size: 14px; color: var(--muted); margin-bottom: 16px; }
+  #driverMap, #adminMap { width: 100%; height: 220px; border-radius: 14px; margin-bottom: 16px; background: #E4E7EB; border: 1px solid var(--line); }
+  .map-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-size: 13px; text-align: center; padding: 0 20px; }
+  .toggle-btn {
+    width: 100%; padding: 18px; border: none; border-radius: 16px; font-size: 17px; font-weight: 600;
+    font-family: inherit; cursor: pointer; color: #fff;
+  }
+  .toggle-btn.start { background: var(--sky); }
+  .toggle-btn.start:hover { background: var(--sky-dark); }
+  .toggle-btn.stop { background: var(--brick); animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(177,80,72,0.35); } 50% { box-shadow: 0 0 0 10px rgba(177,80,72,0); } }
+  .van-status { text-align: center; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+  .van-status.active { background: #EAF3EC; color: var(--leaf); }
+  .van-status.inactive { background: #F1F2F4; color: var(--muted); }
+  .history-section { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 18px; }
+  .history-head h2 { font-size: 16px; margin: 0 0 10px; font-weight: 600; color: var(--ink); }
+  .history-empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+  .history-row { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .history-row:last-child { border-bottom: none; }
+  .history-date { color: var(--ink); font-weight: 500; }
+  .history-time { color: var(--muted); }
+  .history-stats { color: var(--leaf); font-weight: 600; font-size: 13px; text-align: right; }
+  .history-stats span { display: block; }
+  .hidden { display: none; }
+  .loading-text { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 0; }
+  .active-indicator {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 2px solid var(--brick);
+    box-shadow: 0 0 0 4px rgba(177,80,72,0.18);
+    z-index: 1000;
+    animation: blinkDot 1.5s ease-in-out infinite;
+  }
+  @keyframes blinkDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  .chat-section { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 16px; }
+  .chat-section h2 { font-size: 16px; margin: 0 0 10px; font-weight: 600; color: var(--ink); }
+  .chat-messages {
+    height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: #FAFBFC;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .chat-empty { color: var(--muted); font-size: 13px; text-align: center; margin: auto; }
+  .chat-bubble {
+    max-width: 78%;
+    padding: 8px 12px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+  .chat-bubble.mine { align-self: flex-end; background: var(--sky); color: #fff; border-bottom-right-radius: 4px; }
+  .chat-bubble.theirs { align-self: flex-start; background: #EDEFF2; color: var(--ink); border-bottom-left-radius: 4px; }
+  .chat-input-row { display: flex; gap: 8px; margin-top: 10px; }
+  .chat-input-row input {
+    flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    font-size: 14px; font-family: inherit;
+  }
+  .chat-input-row button {
+    padding: 10px 16px; background: var(--sky); color: #fff; border: none; border-radius: 10px;
+    font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .chat-input-row button:hover { background: var(--sky-dark); }
+  .chat-thread-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .chat-thread-item {
+    padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px;
+    cursor: pointer; color: var(--ink);
+  }
+  .chat-thread-item.selected { border-color: var(--sky); background: #F1F5F8; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="active-indicator hidden" id="activeIndicator" title="Trajeto ativo"></div>
+
+<div class="card" id="authCard">
+  <div class="brand-row">Trajeto Seguro</div>
+
+  <form id="authForm">
+    <div id="roleField">
+      <label class="field-label">Você é:</label>
+      <div class="role-options">
+        <div class="role-option selected" data-role="motorista">Motorista</div>
+        <div class="role-option" data-role="familia">Família</div>
+        <div class="role-option" data-role="admin">Adm</div>
+      </div>
+    </div>
+
+    <label class="field-label" for="email">E-mail</label>
+    <input class="field-input" id="email" type="email" placeholder="nome@exemplo.com" autocomplete="email">
+
+    <label class="field-label" for="password">Senha</label>
+    <input class="field-input" id="password" type="password" placeholder="Sua senha" autocomplete="current-password">
+
+    <p class="error-text hidden" id="authError"></p>
+
+    <button type="submit" class="btn-primary" id="authBtn">Entrar</button>
+    <button type="button" class="link-btn" id="toggleModeBtn">Não tem conta? Cadastre-se</button>
+  </form>
+</div>
+
+<div class="card hidden" id="driverCard">
+  <div class="top-bar">
+    <div>
+      <div class="brand-row" style="margin-bottom:0;">Trajeto Seguro</div>
+      <h1 style="font-size:19px; margin:2px 0 0; color: var(--ink);">Painel do motorista</h1>
+    </div>
+    <button class="logout-btn" id="driverLogoutBtn">Sair</button>
+  </div>
+
+  <div id="driverMap"><div class="map-placeholder">O mapa aparecerá aqui quando o trajeto começar</div></div>
+
+  <div class="timer" id="timer">00:00</div>
+  <div class="distance-line" id="distanceLine"></div>
+  <p class="status-line" id="statusLine">Pronto para iniciar o trajeto</p>
+
+  <button class="toggle-btn start" id="toggleBtn">Iniciar trajeto</button>
+
+  <p class="van-status active hidden" id="fenceBanner" style="margin-top:14px;">🏫 Van dentro da área da escola (100m)</p>
+
+  <p class="error-text hidden" id="geoError"></p>
+
+  <div class="chat-section">
+    <h2>Mensagens das famílias</h2>
+    <div class="chat-thread-list" id="chatThreadList">
+      <p class="chat-empty">Nenhuma família enviou mensagem ainda.</p>
+    </div>
+    <div class="chat-messages" id="driverChatMessages"><p class="chat-empty">Selecione uma conversa acima.</p></div>
+    <div class="chat-input-row">
+      <input type="text" id="driverChatInput" placeholder="Escreva uma resposta..." disabled>
+      <button id="driverChatSendBtn" disabled>Enviar</button>
+    </div>
+  </div>
+</div>
+
+<div class="card hidden" id="familyCard">
+  <div class="top-bar">
+    <div>
+      <div class="brand-row" style="margin-bottom:0;">Trajeto Seguro</div>
+      <h1 style="font-size:19px; margin:2px 0 0; color: var(--ink);">Acompanhar a van</h1>
+    </div>
+    <button class="logout-btn" id="familyLogoutBtn">Sair</button>
+  </div>
+
+  <div class="van-status inactive" id="familyVanStatus">Van sem trajeto ativo no momento</div>
+
+  <div id="familyMap"><div class="map-placeholder">O mapa vai mostrar a van assim que um trajeto começar</div></div>
+
+  <div class="chat-section">
+    <h2>Falar com o motorista</h2>
+    <div class="chat-messages" id="familyChatMessages"><p class="chat-empty">Nenhuma mensagem ainda.</p></div>
+    <div class="chat-input-row">
+      <input type="text" id="familyChatInput" placeholder="Escreva uma mensagem...">
+      <button id="familyChatSendBtn">Enviar</button>
+    </div>
+  </div>
+</div>
+
+<div class="card hidden" id="adminCard">
+  <div class="top-bar">
+    <div>
+      <div class="brand-row" style="margin-bottom:0;">Trajeto Seguro</div>
+      <h1 style="font-size:19px; margin:2px 0 0; color: var(--ink);">Painel do Adm</h1>
+    </div>
+    <button class="logout-btn" id="adminLogoutBtn">Sair</button>
+  </div>
+
+  <div class="van-status inactive" id="vanStatus">Van sem trajeto ativo no momento</div>
+
+  <div id="adminMap"><div class="map-placeholder">O mapa vai mostrar a van assim que um trajeto começar</div></div>
+
+  <div class="history-section">
+    <div class="history-head"><h2>Histórico de trajetos</h2></div>
+    <div id="historyList"><p class="history-empty">Nenhum trajeto registrado ainda.</p></div>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<!-- Leaflet -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCGwlBz5NporGJj72HOAGI4f4HdMVj2Uig",
+    authDomain: "trajeto-seguro-c73bf.firebaseapp.com",
+    databaseURL: "https://trajeto-seguro-c73bf-default-rtdb.firebaseio.com",
+    projectId: "trajeto-seguro-c73bf",
+    storageBucket: "trajeto-seguro-c73bf.firebasestorage.app",
+    messagingSenderId: "1092571472810",
+    appId: "1:1092571472810:web:baecb46efb6ebc718781d3"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.database();
+
+  const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  const MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+  let mode = "login"; // ou "signup"
+  let selectedRole = "motorista";
+
+  let driverStatus = "idle";
+  let tripStart = null;
+  let intervalId = null;
+  let driverMap = null, driverMarker = null;
+  let routePoints = [];
+  let totalDistanceKm = 0;
+  let watchId = null;
+  let wasNearSchool = false;
+
+  let adminMap = null, adminMarker = null;
+  let adminMapReady = false;
+
+  function formatClock(date) { return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); }
+  function formatDayLabel(date) { return `${WEEKDAYS[date.getDay()]}, ${date.getDate()} ${MONTHS[date.getMonth()]}`; }
+  function formatElapsed(totalSeconds) {
+    const m = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+    const s = String(totalSeconds % 60).padStart(2, "0");
+    return `${m}:${s}`;
+  }
+  function formatDuration(totalSeconds) {
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    if (m === 0) return `${s}s`;
+    return `${m} min${s ? ` ${s}s` : ""}`;
+  }
+  function haversineKm(a, b) {
+    const R = 6371;
+    const dLat = (b[0] - a[0]) * Math.PI / 180;
+    const dLon = (b[1] - a[1]) * Math.PI / 180;
+    const lat1 = a[0] * Math.PI / 180;
+    const lat2 = b[0] * Math.PI / 180;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.asin(Math.sqrt(h));
+  }
+  // ---------- Indicador de trajeto ativo (tela + aba do navegador) ----------
+  function generateDotFavicon(fillColor, borderColor) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.arc(16, 16, 13, 0, 2 * Math.PI);
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = borderColor;
+    ctx.stroke();
+    return canvas.toDataURL("image/png");
+  }
+
+  function setFavicon(dataUrl) {
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = dataUrl;
+  }
+
+  const ACTIVE_FAVICON = generateDotFavicon("#FFFFFF", "#B15048");
+  const IDLE_FAVICON = generateDotFavicon("#16324F", "#1E2749");
+
+  function setTripActiveIndicator(isActive) {
+    document.getElementById("activeIndicator").classList.toggle("hidden", !isActive);
+    setFavicon(isActive ? ACTIVE_FAVICON : IDLE_FAVICON);
+    document.title = isActive ? "🔵 Em andamento — Trajeto Seguro" : "Trajeto Seguro";
+  }
+
+  // Service worker: permite instalar o app e mostrar a notificação de status ativo.
+  let swRegistration = null;
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js")
+      .then((reg) => { swRegistration = reg; })
+      .catch(() => { swRegistration = null; });
+  }
+
+  async function showActiveNotification() {
+    if (!("Notification" in window) || !swRegistration) return;
+    try {
+      let permission = Notification.permission;
+      if (permission === "default") permission = await Notification.requestPermission();
+      if (permission !== "granted") return;
+      swRegistration.showNotification("Trajeto Seguro ativo", {
+        body: "O trajeto está sendo acompanhado. Toque para abrir o app.",
+        tag: "trip-active",
+        icon: "icon-orange-192.png",
+        badge: "badge-96.png",
+        requireInteraction: true
+      });
+    } catch { /* navegador sem suporte, segue sem notificação */ }
+  }
+
+  async function hideActiveNotification() {
+    if (!swRegistration) return;
+    try {
+      const notifications = await swRegistration.getNotifications({ tag: "trip-active" });
+      notifications.forEach((n) => n.close());
+    } catch { /* nada a fazer */ }
+  }
+
+  function translateAuthError(code) {
+    const map = {
+      "auth/email-already-in-use": "Esse e-mail já tem uma conta cadastrada.",
+      "auth/invalid-email": "Digite um e-mail válido.",
+      "auth/weak-password": "A senha precisa ter pelo menos 6 caracteres.",
+      "auth/wrong-password": "Senha incorreta.",
+      "auth/user-not-found": "Não existe conta com esse e-mail. Cadastre-se primeiro.",
+      "auth/invalid-credential": "E-mail ou senha incorretos."
+    };
+    return map[code] || "Não foi possível concluir. Tente novamente.";
+  }
+
+  // ---------- Cerca virtual da escola ----------
+  const SCHOOL_ADDRESS = "Rua Ico, 158, Belo Horizonte, MG, Brasil";
+  const SCHOOL_FENCE_RADIUS_M = 100;
+  let schoolLocation = null; // { lat, lng, address }
+
+  async function loadSchoolLocation() {
+    try {
+      const snap = await db.ref("school").once("value");
+      const saved = snap.val();
+      if (saved && saved.lat && saved.lng) {
+        schoolLocation = saved;
+        return;
+      }
+    } catch { /* segue para geocodificar */ }
+
+    try {
+      const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(SCHOOL_ADDRESS);
+      const res = await fetch(url, { headers: { "Accept-Language": "pt-BR" } });
+      const results = await res.json();
+      if (results && results.length > 0) {
+        schoolLocation = { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon), address: SCHOOL_ADDRESS };
+        await db.ref("school").set(schoolLocation);
+      }
+    } catch {
+      console.warn("Não foi possível localizar o endereço da escola automaticamente.");
+    }
+  }
+  loadSchoolLocation();
+
+  function drawSchoolFence(map) {
+    if (!schoolLocation) return;
+    const point = [schoolLocation.lat, schoolLocation.lng];
+    L.circle(point, {
+      radius: SCHOOL_FENCE_RADIUS_M,
+      color: "#E8A33D",
+      fillColor: "#E8A33D",
+      fillOpacity: 0.15,
+      weight: 2
+    }).addTo(map);
+    L.marker(point, {
+      icon: L.divIcon({
+        className: "school-icon",
+        html: '<div style="background:#E8A33D;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 1px 4px rgba(0,0,0,0.3);">🏫</div>',
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      })
+    }).addTo(map).bindPopup("Escola");
+  }
+
+  // ---------- Ícone da van ----------
+  function createVanIcon() {
+    return L.divIcon({
+      className: "van-marker-icon",
+      html: `
+        <svg width="38" height="26" viewBox="0 0 38 26" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="6" width="30" height="14" rx="3" fill="#16324F" stroke="#1E2749" stroke-width="1"/>
+          <path d="M27 9 h6 l3 5 v2 h-9 z" fill="#16324F" stroke="#1E2749" stroke-width="1"/>
+          <rect x="4" y="9" width="7" height="6" rx="1" fill="#EDEFF2"/>
+          <rect x="13" y="9" width="7" height="6" rx="1" fill="#EDEFF2"/>
+          <rect x="29" y="10" width="5" height="5" rx="1" fill="#EDEFF2"/>
+          <circle cx="9" cy="21" r="3" fill="#1E2749"/>
+          <circle cx="27" cy="21" r="3" fill="#1E2749"/>
+        </svg>
+      `,
+      iconSize: [38, 26],
+      iconAnchor: [19, 20]
+    });
+  }
+
+  // ---------- Tela de autenticação ----------
+  document.querySelectorAll(".role-option").forEach(el => {
+    el.addEventListener("click", () => {
+      document.querySelectorAll(".role-option").forEach(o => o.classList.remove("selected"));
+      el.classList.add("selected");
+      selectedRole = el.dataset.role;
+    });
+  });
+
+  document.getElementById("toggleModeBtn").addEventListener("click", () => {
+    mode = mode === "login" ? "signup" : "login";
+    document.getElementById("authBtn").textContent = mode === "login" ? "Entrar" : "Cadastrar";
+    document.getElementById("toggleModeBtn").textContent = mode === "login"
+      ? "Não tem conta? Cadastre-se"
+      : "Já tem conta? Entrar";
+    document.getElementById("roleField").classList.toggle("hidden", mode === "login");
+  });
+
+  document.getElementById("authForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById("authError");
+    errorEl.classList.add("hidden");
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const btn = document.getElementById("authBtn");
+    btn.disabled = true;
+
+    try {
+      if (mode === "signup") {
+        const cred = await auth.createUserWithEmailAndPassword(email, password);
+        await db.ref("users/" + cred.user.uid).set({ email, role: selectedRole });
+      } else {
+        await auth.signInWithEmailAndPassword(email, password);
+      }
+    } catch (err) {
+      errorEl.textContent = translateAuthError(err.code);
+      errorEl.classList.remove("hidden");
+      btn.disabled = false;
+    }
+  });
+
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) {
+      document.getElementById("authCard").classList.remove("hidden");
+      document.getElementById("driverCard").classList.add("hidden");
+      document.getElementById("adminCard").classList.add("hidden");
+      document.getElementById("familyCard").classList.add("hidden");
+      document.getElementById("authBtn").disabled = false;
+      return;
+    }
+    const snap = await db.ref("users/" + user.uid).once("value");
+    const profile = snap.val();
+    const role = profile ? profile.role : "motorista";
+
+    document.getElementById("authCard").classList.add("hidden");
+    if (role === "admin") {
+      document.getElementById("adminCard").classList.remove("hidden");
+      startAdminListeners();
+    } else if (role === "familia") {
+      document.getElementById("familyCard").classList.remove("hidden");
+      startFamilyListeners(user);
+    } else {
+      document.getElementById("driverCard").classList.remove("hidden");
+      startDriverChatListeners();
+    }
+  });
+
+  document.getElementById("driverLogoutBtn").addEventListener("click", () => auth.signOut());
+  document.getElementById("adminLogoutBtn").addEventListener("click", () => auth.signOut());
+  document.getElementById("familyLogoutBtn").addEventListener("click", () => auth.signOut());
+
+  // ---------- Painel do motorista ----------
+  function ensureDriverMap(center) {
+    const mapDiv = document.getElementById("driverMap");
+    if (!driverMap) {
+      mapDiv.innerHTML = "";
+      driverMap = L.map(mapDiv, { zoomControl: false }).setView(center, 16);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap", maxZoom: 19 }).addTo(driverMap);
+      L.control.zoom({ position: "bottomright" }).addTo(driverMap);
+      drawSchoolFence(driverMap);
+    } else {
+      driverMap.setView(center, 16);
+    }
+  }
+
+  function showGeoError(msg) {
+    const el = document.getElementById("geoError");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+  function hideGeoError() { document.getElementById("geoError").classList.add("hidden"); }
+
+  // Distância (em km) que consideramos "movimento de verdade" e não apenas ruído do GPS parado.
+  const MOVEMENT_THRESHOLD_KM = 0.02; // 20 metros
+  const STALE_WARNING_MINUTES = 15;
+
+  let lastMovementTime = null;
+  let staleCheckIntervalId = null;
+  let stalePromptOpen = false;
+
+  function startStaleWatch() {
+    lastMovementTime = Date.now();
+    stalePromptOpen = false;
+    staleCheckIntervalId = setInterval(() => {
+      if (driverStatus !== "running" || stalePromptOpen) return;
+      const idleMinutes = (Date.now() - lastMovementTime) / 60000;
+      if (idleMinutes >= STALE_WARNING_MINUTES) {
+        stalePromptOpen = true;
+        const finished = window.confirm(
+          `A van está parada há mais de ${STALE_WARNING_MINUTES} minutos. O trajeto foi finalizado?`
+        );
+        if (finished) {
+          finalizeTrip();
+        } else {
+          // Adia o próximo aviso por mais 15 minutos de parada contínua.
+          lastMovementTime = Date.now();
+          stalePromptOpen = false;
+        }
+      }
+    }, 60000); // verifica a cada 1 minuto
+  }
+
+  function stopStaleWatch() {
+    clearInterval(staleCheckIntervalId);
+    staleCheckIntervalId = null;
+    lastMovementTime = null;
+    stalePromptOpen = false;
+  }
+
+  async function finalizeTrip() {
+    const btn = document.getElementById("toggleBtn");
+    const timerEl = document.getElementById("timer");
+    const statusLine = document.getElementById("statusLine");
+
+    clearInterval(intervalId);
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    stopStaleWatch();
+
+    const endDate = new Date();
+    const startDate = new Date(tripStart);
+    const durationSeconds = Math.max(1, Math.floor((endDate - startDate) / 1000));
+
+    await db.ref("trips").push({
+      dayLabel: formatDayLabel(startDate),
+      startTime: formatClock(startDate),
+      endTime: formatClock(endDate),
+      durationSeconds,
+      distanceKm: routePoints.length > 1 ? totalDistanceKm : null,
+      driverEmail: auth.currentUser.email,
+      timestamp: startDate.getTime()
+    });
+    await db.ref("vanLocation").update({ active: false });
+
+    driverStatus = "idle";
+    tripStart = null;
+    timerEl.textContent = "00:00";
+    statusLine.textContent = "Pronto para iniciar o trajeto";
+    btn.textContent = "Iniciar trajeto";
+    btn.classList.remove("stop");
+    btn.classList.add("start");
+    setTripActiveIndicator(false);
+    hideActiveNotification();
+  }
+
+  document.getElementById("toggleBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("toggleBtn");
+    const timerEl = document.getElementById("timer");
+    const statusLine = document.getElementById("statusLine");
+
+    if (driverStatus === "idle") {
+      driverStatus = "running";
+      tripStart = Date.now();
+      totalDistanceKm = 0;
+      routePoints = [];
+      driverMarker = null;
+      wasNearSchool = false;
+      document.getElementById("fenceBanner").classList.add("hidden");
+      hideGeoError();
+      setTripActiveIndicator(true);
+      showActiveNotification();
+      timerEl.textContent = "00:00";
+      document.getElementById("distanceLine").textContent = "";
+      statusLine.textContent = "Trajeto em andamento — compartilhando localização";
+      btn.textContent = "Finalizar trajeto";
+      btn.classList.remove("start");
+      btn.classList.add("stop");
+
+      intervalId = setInterval(() => {
+        timerEl.textContent = formatElapsed(Math.floor((Date.now() - tripStart) / 1000));
+      }, 1000);
+
+      startStaleWatch();
+
+      if ("geolocation" in navigator) {
+        watchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            const { latitude, longitude } = pos.coords;
+            ensureDriverMap([latitude, longitude]);
+            if (!driverMarker) driverMarker = L.marker([latitude, longitude], { icon: createVanIcon() }).addTo(driverMap);
+            else driverMarker.setLatLng([latitude, longitude]);
+
+            if (routePoints.length > 0) {
+              const moved = haversineKm(routePoints[routePoints.length - 1], [latitude, longitude]);
+              totalDistanceKm += moved;
+              // Só reseta o relógio de "parado" se houve deslocamento real (não apenas oscilação do GPS).
+              if (moved >= MOVEMENT_THRESHOLD_KM) lastMovementTime = Date.now();
+            } else {
+              lastMovementTime = Date.now();
+            }
+
+            let nearSchool = false;
+            if (schoolLocation) {
+              const distToSchoolKm = haversineKm([latitude, longitude], [schoolLocation.lat, schoolLocation.lng]);
+              nearSchool = (distToSchoolKm * 1000) <= SCHOOL_FENCE_RADIUS_M;
+              const banner = document.getElementById("fenceBanner");
+              if (nearSchool && !wasNearSchool) banner.classList.remove("hidden");
+              if (!nearSchool) banner.classList.add("hidden");
+              wasNearSchool = nearSchool;
+            }
+
+            routePoints.push([latitude, longitude]);
+            driverMap.panTo([latitude, longitude]);
+            document.getElementById("distanceLine").textContent = `${totalDistanceKm.toFixed(2)} km percorridos`;
+
+            db.ref("vanLocation").set({
+              lat: latitude, lng: longitude, active: true, nearSchool,
+              driverEmail: auth.currentUser.email, updatedAt: Date.now()
+            });
+          },
+          () => showGeoError("Não foi possível acessar sua localização. Verifique as permissões de GPS do navegador."),
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+        );
+      } else {
+        showGeoError("Seu navegador não tem suporte a GPS.");
+      }
+    } else {
+      await finalizeTrip();
+    }
+  });
+
+  // ---------- Painel do administrador ----------
+  function ensureAdminMap(center) {
+    const mapDiv = document.getElementById("adminMap");
+    if (!adminMap) {
+      mapDiv.innerHTML = "";
+      adminMap = L.map(mapDiv, { zoomControl: false }).setView(center, 15);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap", maxZoom: 19 }).addTo(adminMap);
+      L.control.zoom({ position: "bottomright" }).addTo(adminMap);
+      drawSchoolFence(adminMap);
+    }
+  }
+
+  function renderHistory(tripsObj) {
+    const el = document.getElementById("historyList");
+    if (!tripsObj) { el.innerHTML = '<p class="history-empty">Nenhum trajeto registrado ainda.</p>'; return; }
+    const trips = Object.values(tripsObj).sort((a, b) => b.timestamp - a.timestamp).slice(0, 30);
+    el.innerHTML = trips.map(trip => `
+      <div class="history-row">
+        <div>
+          <div class="history-date">${trip.dayLabel}</div>
+          <div class="history-time">${trip.startTime} — ${trip.endTime} · ${trip.driverEmail || ""}</div>
+        </div>
+        <div class="history-stats">
+          <span>${formatDuration(trip.durationSeconds)}</span>
+          <span>${trip.distanceKm != null ? trip.distanceKm.toFixed(2) + " km" : "—"}</span>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function startAdminListeners() {
+    if (adminMapReady) return;
+    adminMapReady = true;
+
+    db.ref("vanLocation").on("value", (snap) => {
+      const data = snap.val();
+      const statusEl = document.getElementById("vanStatus");
+      if (!data || !data.active) {
+        statusEl.textContent = "Van sem trajeto ativo no momento";
+        statusEl.classList.remove("active");
+        statusEl.classList.add("inactive");
+        return;
+      }
+      statusEl.textContent = data.nearSchool
+        ? `🏫 Van chegando à escola agora · motorista ${data.driverEmail || ""}`
+        : `Van em trajeto agora · motorista ${data.driverEmail || ""}`;
+      statusEl.classList.remove("inactive");
+      statusEl.classList.add("active");
+
+      ensureAdminMap([data.lat, data.lng]);
+      if (!adminMarker) adminMarker = L.marker([data.lat, data.lng], { icon: createVanIcon() }).addTo(adminMap);
+      else adminMarker.setLatLng([data.lat, data.lng]);
+      adminMap.panTo([data.lat, data.lng]);
+    });
+
+    db.ref("trips").on("value", (snap) => renderHistory(snap.val()));
+  }
+
+  // ---------- Painel da família ----------
+  let familyMap = null, familyMarker = null, familyListenersReady = false;
+
+  function ensureFamilyMap(center) {
+    const mapDiv = document.getElementById("familyMap");
+    if (!familyMap) {
+      mapDiv.innerHTML = "";
+      familyMap = L.map(mapDiv, { zoomControl: false }).setView(center, 15);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap", maxZoom: 19 }).addTo(familyMap);
+      L.control.zoom({ position: "bottomright" }).addTo(familyMap);
+      drawSchoolFence(familyMap);
+    }
+  }
+
+  function renderChatMessages(containerEl, messagesObj, myRole) {
+    if (!messagesObj) {
+      containerEl.innerHTML = '<p class="chat-empty">Nenhuma mensagem ainda.</p>';
+      return;
+    }
+    const messages = Object.values(messagesObj).sort((a, b) => a.timestamp - b.timestamp);
+    containerEl.innerHTML = messages.map(msg => `
+      <div class="chat-bubble ${msg.senderRole === myRole ? "mine" : "theirs"}">${msg.text}</div>
+    `).join("");
+    containerEl.scrollTop = containerEl.scrollHeight;
+  }
+
+  function startFamilyListeners(user) {
+    if (familyListenersReady) return;
+    familyListenersReady = true;
+
+    db.ref("vanLocation").on("value", (snap) => {
+      const data = snap.val();
+      const statusEl = document.getElementById("familyVanStatus");
+      if (!data || !data.active) {
+        statusEl.textContent = "Van sem trajeto ativo no momento";
+        statusEl.classList.remove("active");
+        statusEl.classList.add("inactive");
+        return;
+      }
+      statusEl.textContent = data.nearSchool ? "🏫 Van chegando à escola agora" : "Van em trajeto agora";
+      statusEl.classList.remove("inactive");
+      statusEl.classList.add("active");
+
+      ensureFamilyMap([data.lat, data.lng]);
+      if (!familyMarker) familyMarker = L.marker([data.lat, data.lng], { icon: createVanIcon() }).addTo(familyMap);
+      else familyMarker.setLatLng([data.lat, data.lng]);
+      familyMap.panTo([data.lat, data.lng]);
+    });
+
+    const chatRef = db.ref("chats/" + user.uid);
+    chatRef.child("familyEmail").set(user.email);
+    chatRef.child("messages").on("value", (snap) => {
+      renderChatMessages(document.getElementById("familyChatMessages"), snap.val(), "familia");
+    });
+
+    document.getElementById("familyChatSendBtn").addEventListener("click", () => sendFamilyMessage(user));
+    document.getElementById("familyChatInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendFamilyMessage(user);
+    });
+  }
+
+  function sendFamilyMessage(user) {
+    const input = document.getElementById("familyChatInput");
+    const text = input.value.trim();
+    if (!text) return;
+    db.ref("chats/" + user.uid + "/messages").push({
+      text, senderRole: "familia", senderEmail: user.email, timestamp: Date.now()
+    });
+    input.value = "";
+  }
+
+  // ---------- Chat do motorista com as famílias ----------
+  let selectedFamilyUid = null;
+  let driverChatListenersReady = false;
+
+  function startDriverChatListeners() {
+    if (driverChatListenersReady) return;
+    driverChatListenersReady = true;
+
+    db.ref("chats").on("value", (snap) => {
+      const data = snap.val();
+      const listEl = document.getElementById("chatThreadList");
+      if (!data) {
+        listEl.innerHTML = '<p class="chat-empty">Nenhuma família enviou mensagem ainda.</p>';
+        return;
+      }
+      const threads = Object.entries(data).map(([uid, thread]) => ({
+        uid, email: thread.familyEmail || "Família"
+      }));
+      listEl.innerHTML = threads.map(t => `
+        <div class="chat-thread-item ${t.uid === selectedFamilyUid ? "selected" : ""}" data-uid="${t.uid}">${t.email}</div>
+      `).join("");
+
+      listEl.querySelectorAll(".chat-thread-item").forEach(el => {
+        el.addEventListener("click", () => openDriverChatThread(el.dataset.uid));
+      });
+    });
+
+    document.getElementById("driverChatSendBtn").addEventListener("click", sendDriverMessage);
+    document.getElementById("driverChatInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendDriverMessage();
+    });
+  }
+
+  let driverChatMessagesRef = null;
+  function openDriverChatThread(uid) {
+    selectedFamilyUid = uid;
+    document.querySelectorAll(".chat-thread-item").forEach(el => {
+      el.classList.toggle("selected", el.dataset.uid === uid);
+    });
+    document.getElementById("driverChatInput").disabled = false;
+    document.getElementById("driverChatSendBtn").disabled = false;
+
+    if (driverChatMessagesRef) driverChatMessagesRef.off();
+    driverChatMessagesRef = db.ref("chats/" + uid + "/messages");
+    driverChatMessagesRef.on("value", (snap) => {
+      renderChatMessages(document.getElementById("driverChatMessages"), snap.val(), "motorista");
+    });
+  }
+
+  function sendDriverMessage() {
+    if (!selectedFamilyUid) return;
+    const input = document.getElementById("driverChatInput");
+    const text = input.value.trim();
+    if (!text) return;
+    db.ref("chats/" + selectedFamilyUid + "/messages").push({
+      text, senderRole: "motorista", senderEmail: auth.currentUser.email, timestamp: Date.now()
+    });
+    input.value = "";
+  }
+</script>
+
+</body>
+</html>
